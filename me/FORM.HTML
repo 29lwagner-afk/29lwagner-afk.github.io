@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>
+    
+      Student - 
+        
+          Formbar
+  </title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link id="lmdm" rel="stylesheet" href="">
+  <link rel="icon" href="/img/favicon.png">
+  <script>
+    let MANAGER_PERMISSIONS = Number('5')
+    let TEACHER_PERMISSIONS = Number('4')
+    let MOD_PERMISSIONS = Number('3')
+    let STUDENT_PERMISSIONS = Number('2')
+    let GUEST_PERMISSIONS = Number('1')
+    let BANNED_PERMISSIONS = Number('0')
+    let currentUser = null
+    if ('[object Object]' != '')
+      currentUser = JSON.parse('{"email":"29lwagner@live.ytech.edu","id":150,"activeClass":18,"permissions":2,"classPermissions":2,"tags":[],"ownedPolls":[],"sharedPolls":[],"pollRes":{"buttonRes":"Yes","textRes":"","time":"2026-04-20T17:49:09.157Z","date":null},"help":false,"break":false,"API":"$2b$10$N9r/UwUhwkwbD9DnsMBWq.xt.Idd8oi5VNxkseBaLNqD67FSPu9cG","pogMeter":480,"displayName":"logan wagner","isGuest":false}')
+  </script>
+</head>
+
+</html>
+<script src="/socket.io/socket.io.js"></script>
+
+<script defer>
+	let socket = io()
+
+	function endBreak() {
+		socket.emit('endBreak')
+		document.getElementById('breakDialog').close()
+		document.getElementById("backgroundDarken").classList.remove('open')
+	}
+
+	socket.on('break', (isApproved) => {
+        const breakDialog = document.getElementById('breakDialog');
+        const backgroundDarken = document.getElementById('backgroundDarken');
+        if (isApproved) {
+            breakDialog.showModal();
+            backgroundDarken.classList.add('open');
+        } else {
+            breakDialog.close();
+            backgroundDarken.classList.remove('open');
+        }
+	})
+
+	socket.on('message', (message) => {
+		alert(message)
+	})
+
+	socket.on('reload', (redirectURL) => {
+        if (window.reloadRedirect) {
+            redirectURL = window.reloadRedirect;
+			window.reloadRedirect = null;
+			location.href = redirectURL;
+		} else if (redirectURL) {
+            location.href = redirectURL;
+		} else {
+            location.reload();
+        }
+	})
+</script>
+<header id="formbarHeader">
+	<a href="/" id="headerLogo">
+		<h1>Formbar</h1>
+		<p id="version">v 2.0.0</p>
+	</a>
+
+	<div id="headerSpacer"></div>
+
+	
+		<ul>
+		
+           <li><a href=/student class="headerTab revampButton">Panel</a></li>
+    	
+		
+		
+		
+			<li>
+				<button href="/" class="headerTab revampButton" title="Classes" onclick="leaveClass()">Classes</button>
+			</li>
+			<li>
+				<a href="/links" class="headerTab revampButton" title="Links">Links</a>
+			</li>
+			<li>
+				<button href="/" class="headerTab revampButton" title="Leave Class" onclick="leaveRoom()">Leave Room</button>
+			</li>
+		
+	
+		</ul>
+
+	<button onclick="toggleTheme()" id="lmdmBtn" class="circularButton" title="LM/DM">
+		<img id="lmdmIcon" src="/img/icons/sun.svg" title="Light/Dark Mode Toggle">
+	</button>
+
+	<button id="muteButton" class="circularButton" onclick="toggleMuteSound()"><img id="muteIcon" src="/img/icons/volume.svg" title="Sound On"></button>
+	<button id="unmuteButton" class="circularButton" onclick="toggleMuteSound()"><img id="unmuteIcon" src="/img/icons/mute.svg" title="Sound Off"></button>
+
+	<script>if(!window.location.href.includes('controlPanel')){document.getElementById('muteButton').remove();document.getElementById('unmuteButton').remove()}</script>
+
+	
+		<button class="mobileMenuButton circularButton" onclick="document.getElementById('mobileNavigation').classList.toggle('open');">
+			<img src="/img/icons/menu.svg" alt="Menu Icon">
+		</button>
+        
+            <a href="/profile" class="circularButton hideMobile" title="LM/DM">
+                <img src="/img/icons/person.svg" title="Profile">
+            </a>
+        
+		<button href="/" id="logoutButton" class="circularButton hideMobile" onclick="logout()">
+			<img id="logoutIcon" src="/img/icons/logout.svg" title="Logout">
+		</button>
+	
+</header>
+<script>
+
+let lmdmIcon = document.getElementById("lmdmIcon");
+
+//document.body.style.backgroundColor = getCookie("theme")
+if (getCookie("theme") == "white") {
+	document.getElementById('lmdm').href = '';
+	lmdmIcon.src = "/img/icons/moon.svg"
+} else if (getCookie("theme") == "dark") {
+	document.getElementById('lmdm').href = '/css/darkmode.css';
+	lmdmIcon.src = "/img/icons/sun.svg"
+}
+
+function getCookie(name) {
+	const value = `; ${document.cookie}`;
+	const parts = value.split(`; ${name}=`);
+	if (parts.length >= 2) return parts.pop().split(';').shift();
+}
+
+var nextYear = new Date().getFullYear() + 1;
+
+function toggleTheme() {
+	let theme = getCookie("theme");
+	if (!theme) theme = "white"; // If no theme cookie, default to white
+	if (theme === "white") {
+	document.cookie = "theme=dark;expires=Fri, 1 Jul " + nextYear + " 23:59:59 GMT; path=/";
+	document.getElementById('lmdm').href = '/css/darkmode.css';
+	lmdmIcon.src = "/img/icons/sun.svg"
+	} else {
+	document.cookie = "theme=white;expires=Fri, 1 Jul " + nextYear + " 23:59:59 GMT; path=/";
+	document.getElementById('lmdm').href = '';
+	lmdmIcon.src = "/img/icons/moon.svg";
+	}
+}
+
+function logout() {
+	if (confirm('Are you sure you want to logout?')) {
+	socket.emit('logout')
+	}
+}
+
+  function leaveClass() {
+    if (confirm('Are you sure you want to change classes? This will remove you from the current class session.')) {
+      // Redirect teachers to manageClass, others to selectClass after the server triggers a reload
+      window.reloadRedirect = '/selectClass';
+      socket.emit('leaveClass')
+    }
+  }
+
+
+  function leaveRoom() {
+    if (confirm('Are you sure you want to leave the classroom?')) { 
+      socket.emit('leaveRoom')
+    }
+  }
+
+  if (currentUser && currentUser.activeClass != null && currentUser.permissions >= MOD_PERMISSIONS) {
+      const muteButton = document.getElementById("muteButton");
+      if(muteButton) muteButton.style.display = "block";
+  }
+</script>
+
+<div id="errorDialog">
+	<img src="/img/icons/close-circle.svg" alt="Error Icon">
+	<div class="errorDetails">
+		<p id="errorMessage"></p>
+		<!-- <p id="errorCode">0x23</p> An idea, may not be needed but might help in future. --> 
+	</div>
+</div>
+
+
+
+<div id="backgroundDarken"></div>
+
+<dialog id="managerPanel-userDialog" class="contentBox revampDiv">
+    
+</dialog>
+
+<div id="mobileNavigation">
+  
+    <ul>
+      
+        <li><a href=/student class="headerTab revampButton"><img src="/img/icons/pie-chart-outline.svg" alt="Manager Icon">Panel</a></li>
+    	
+        
+            
+                      
+                        <li><button href="/" class="headerTab revampButton" title="Classes" onclick="leaveClass()">
+                          <img src="/img/icons/easel-outline.svg" alt="Classes Icon">Classes</button></li>
+                          
+                        <li><button href="/" class="headerTab revampButton" title="Links" onclick="location.href = '/links'">
+                          <img src="/img/icons/link-outline.svg" alt="Links Icon">Links</button></li>
+                          <li>
+                          <button href="/" class="headerTab revampButton" title="Leave Class" onclick="leaveRoom()"><img src="/img/icons/logout.svg" style="transform: scaleX(-1);" alt="Leave Classes Icon">Leave Room</button></li>
+                        </ul>
+                        <div class="mobileNavSpacer"></div>
+                          
+                          <a href="/profile" class="headerTab revampButton" title="Profile">
+                            <img src="/img/icons/person.svg" alt="Profile Icon">Profile
+                          </a>
+                          
+                          <button href="/" id="logoutButton" class="revampButton" onclick="logout()">
+                            <img src="/img/icons/logout.svg" alt="Logout Icon">Logout
+                          </button>
+                          
+</div>
+
+<script>
+
+    function closeModal(e) {
+        e.parentElement.close();
+        document.getElementById("backgroundDarken").className = ""
+    }
+
+    const mobileDialogBackButton = `<button class='backButton quickButton revampButton dialogBack' onclick="closeModal(this)"><img src="/img/icons/chevron-back-outline.svg" alt="Back Icon"><p>Back</p></button>`;
+
+
+    let orientation = 'landscape';
+
+    window.addEventListener('resize', () => {
+        if(window.innerHeight > window.innerWidth) orientation = 'portrait';
+        else orientation = 'landscape';
+    });
+    if(window.innerHeight > window.innerWidth) orientation = 'portrait';
+    else orientation = 'landscape';
+
+</script>
+
+
+<head>
+	<style>
+		#vbContainer {
+			top: 75px;
+			height: 85%;
+			justify-self: center;
+		}
+	</style>
+	<script src="/js/deepObjectEqual.js"></script>
+</head>
+
+<body role="document" tabindex="0">
+	<div id="studentVBar">
+		<div id="vbContainer">
+    <canvas id='virtualbar'></canvas>
+</div>
+
+<script src="js/chart.js"></script>
+<script>
+    let noPoll;
+    let virtualBar = document.getElementById("virtualbar");
+    let mychart = virtualBar.getContext("2d");
+
+    // Get the container to hide/show - use vbContainerOuter if it exists (control panel), otherwise use parent element (student page)
+    let containerToToggle = typeof vbContainerOuter !== 'undefined' ? vbContainerOuter : virtualBar.parentElement;
+
+    let pollsData = {}
+    let timeData = {}
+    let doughnutChart = new Chart(mychart, {
+        type: 'pie',
+        data: {
+            labels: [],
+            datasets: [{
+                backgroundColor: [],
+                data: []
+            },
+            {
+                backgroundColor: ["blue", "white"],
+                data: [],
+                type: "pie",
+                options: {
+                    //disable the labels appearing on the pie chart's data
+                    plugins: {
+                        legend: {
+                            labels: {
+                                display: false,
+                            }
+                        }
+                    }
+                }
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false,
+                    labels: {
+                        font: {
+                            size: (document.documentElement.clientWidth + document.documentElement.clientHeight) / 100
+                        },
+                        color: 'black'
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            return context.dataset.label;
+                        }
+                    }
+                }
+            },
+            elements: {
+                arc: {
+                    borderColor: "black"
+                }
+            },
+            cutout: '0%',
+        }
+    })
+
+    // Calls for data
+    let loaded = false
+    socket.emit('classUpdate')
+
+    // Gets data from server
+    socket.on('classUpdate', (classroomData) => {
+        loaded = true;
+
+        const newPollData = classroomData.poll
+        if (deepObjectEqual(newPollData, pollsData)) return
+
+        if (!newPollData.status && Object.keys(newPollData.responses).length == 0) {
+            if (!timeData.active) {
+                if (noPoll) noPoll.style.display = ''
+
+                containerToToggle.style.display = "none";
+            }
+
+            doughnutChart.data.datasets[0].data = []
+            doughnutChart.data.labels = []
+        } else {
+            if (noPoll) noPoll.style.display = 'none'
+            containerToToggle.style.display = "block";
+
+            // Reset virtual bar
+            doughnutChart.data.datasets[0].backgroundColor = []
+            doughnutChart.data.datasets[0].data = []
+            doughnutChart.data.labels = []
+
+            let totalStudents = newPollData.totalResponders
+            let totalResponses = newPollData.totalResponses;
+
+            // make the polls blind unless all students answered
+            if (totalStudents == totalResponses || currentUser.classPermissions >= TEACHER_PERMISSIONS) {
+                newPollData.blind = false
+            }
+
+            let labelsArray = []
+            let pollArray = []
+
+            // Build labels and data from the responses array
+            if (newPollData.blind) {
+                labelsArray.push('Responses')
+                // Sum all response counts for blind mode
+                let totalResponseCount = 0;
+                for (const pollData of newPollData.responses || []) {
+                    totalResponseCount += pollData.responses || 0;
+                }
+                pollArray.push(totalResponseCount);
+                doughnutChart.data.datasets[0].backgroundColor.push('#FFAA00')
+            } else {
+                // Normal mode - show each response option
+                for (const pollData of newPollData.responses || []) {
+                    labelsArray.push(pollData.answer)
+                    pollArray.push(pollData.responses || 0)
+                    doughnutChart.data.datasets[0].backgroundColor.push(pollData.color)
+                }
+            }
+
+            // Add "No Response" option
+            labelsArray.push('No Response')
+            pollArray.push(newPollData.totalResponders - newPollData.totalResponses)
+            doughnutChart.data.datasets[0].backgroundColor.push('#E1E1E1')
+
+            doughnutChart.data.labels = labelsArray
+            doughnutChart.data.datasets[0].data = pollArray
+        }
+
+        pollsData = newPollData
+        doughnutChart.update()
+    })
+
+    // If the user is rate limited from sockets, then the data may not populate in the control panel immediately
+    // Therefore, we will keep emitting the classUpdate event until we get the data
+    const checkLoadedInterval = setInterval(() => {
+        if (loaded) {
+            clearInterval(checkLoadedInterval);
+        }
+        socket.emit('classUpdate');
+    }, 1000);
+
+    // socket.emit('vbTimer')
+    socket.on('vbTimer', (newTimeData) => {
+        if (deepObjectEqual(newTimeData, timeData)) return
+
+        let pieChart = doughnutChart.data.datasets[1]
+        let time = newTimeData.timeLeft
+        let timePassed = newTimeData.startTime - newTimeData.timeLeft
+        let sound = newTimeData.sound
+        let active = newTimeData.active
+        //turn the time into minutes and seconds
+        let minutes = Math.floor(time / 60)
+        let seconds = time % 60
+        if (seconds < 10) {
+            seconds = "0" + seconds
+        }
+        let timeString = minutes + ":" + seconds
+
+        if (active) {
+            containerToToggle.style.display = "block";
+            if (time > 0) {
+                pieChart.data = [time, timePassed]
+                doughnutChart.data.datasets[1].label = `${minutes}:${seconds}`
+                doughnutChart.data.label = `${minutes}:${seconds}`
+                pieChart.backgroundColor = ["blue", "white"]
+            } else {
+                pieChart.data = [timePassed]
+                doughnutChart.data.datasets[1].label = timeString
+                pieChart.backgroundColor = ["red"]
+            }
+        } else {
+            if (!pollsData.status && Object.keys(pollsData.responses).length == 0) {
+                containerToToggle.style.display = "none";
+            }
+            pieChart.data = []
+        }
+
+        timeData = newTimeData
+        doughnutChart.update()
+    })
+</script>
+		<h2 id="pollPrompt" class="revampDivAlt"></h2>
+		
+
+		<div id="helpBreak">
+			<div id="pollContent">
+				<h1 id="noPoll" class="textColorContent">No active poll</h1>
+				<div id="poll">
+					<div id="pollForm"></div>
+				</div>
+			</div>
+			<div id="studHelpAandBreak">
+				<button onclick="{document.getElementById('requestHelpDialog').showModal();document.getElementById('backgroundDarken').classList.add('open')}" class="quickButton helpButton revampButton">Send Help Ticket</button>
+				<button class="breakButton revampButton"
+					onclick="{document.getElementById('requestBreakDialog').showModal();document.getElementById('backgroundDarken').classList.add('open')}">
+					Take a Break
+				</button>
+			</div>
+		</div>
+	</div>
+	<dialog id="breakDialog" class="contentBox revampDiv">
+	<div id="onBreak">
+		<p style="margin-top: 0;">You are on a break</p>
+		<button class="quickButton revampButton" onclick="endBreak()" style="margin: auto;">End Break</button>
+	</div>
+</dialog>
+
+
+
+	<dialog id="requestBreakDialog" class="contentBox revampDiv">
+		<script>document.getElementById("requestBreakDialog").onclose = () => {document.getElementById('backgroundDarken').classList.remove('open')}</script>
+		<form
+			onsubmit="submitBreak();document.getElementById('bathroom').checked = false;document.getElementById('other').checked = false;document.getElementById('backgroundDarken').classList.remove('open')">
+			<h3 style="margin-top: 0;">Take a break</h3>
+			<div id="breakInfo">
+				<div id="breakInputs" class="">
+					<label class="form-control" for="bathroom">
+						<input type="radio" name="option" id="bathroom" value="Bathroom" required>
+						Bathroom
+					</label>
+					<label class="form-control" for="other">
+						<input type="radio" name="option" id="other" value="other">
+						Other
+					</label>
+				</div>
+				<textarea class="hidden revampButton revampWithText" id="otherText" cols="25" rows="3"
+					maxlength="150"></textarea>
+			</div>
+			<div id="takeBreak" class="hCentered" style="display: flex;flex-direction: row;justify-content: center;align-items: center;gap: 20px;">
+				<button class="quickButton revampButton" id="cancel" type="button"
+					onclick="document.getElementById('bathroom').checked = false;document.getElementById('other').checked = false;document.getElementById('requestBreakDialog').close();document.getElementById('backgroundDarken').classList.remove('open')">Cancel</button>
+				<button class="quickButton revampButton" type="submit">Take Break</button>
+			</div>
+		</form>
+	</dialog>
+	<dialog id="requestHelpDialog" class="contentBox revampDiv">
+		<script>document.getElementById("requestHelpDialog").onclose = () => {document.getElementById('backgroundDarken').classList.remove('open')}</script>
+		<form onsubmit="help()">
+			<h3 style="margin-top: 0;">Request Help</h3>
+			<div id="eventForm">
+				<textarea id="ticket" class="revampButton revampWithText" cols="30" rows="5" maxlength="150" class="helpBox"
+					placeholder="Reason (optional)"></textarea>
+				<!-- <input type="text" id="ticket" class="quickButton" placeholder="Reason(optional)"> -->
+			</div>
+
+			<div id="takeHelp" class="hCentered" style="display: flex;flex-direction: row;justify-content: center;align-items: center;gap: 20px;">
+				<button class="quickButton revampButton" id="cancel" type="button" onclick="document.getElementById('requestHelpDialog').close();document.getElementById('backgroundDarken').classList.remove('open')">Cancel</button>
+				<button class="quickButton revampButton" type="submit">Request Help</button>
+			</div>
+		</form>
+	</dialog>
+	<div id="backgroundDarken"></div>
+	
+</body>
+
+
+
+
+<script type="text/javascript">
+	// HTML elements for polls
+	let resTextBox = document.getElementById('resTextBox')
+	let pollForm = document.getElementById('pollForm')
+	let pollContent = document.getElementById('pollContent')
+	let pollDiv = document.getElementById('poll')
+	let pollPromptDisplay = document.getElementById('pollPrompt')
+	noPoll = document.getElementById('noPoll')
+
+	// Stores the answer type that will be used in the student form
+	let multiAnswer = ""
+
+	// For answering polls using only the keyboard
+	document.addEventListener('keydown', (event) => {
+		try {
+			const key = +event.key - 1;
+			const pollSelection = pollForm.children[key].children[0];
+
+			// If the response is not already selected, then select it
+			if (!pollSelection.checked) {
+				pollSelection.click();
+			}
+		} catch (err) {
+			// Do nothing, this is just to prevent errors when the user presses a key that does not correspond to a poll response
+		}
+	});
+
+	let oldLetterRes = 'Yes'
+	let oldTextRes = currentUser.pollRes.textRes
+	let poll = {}
+	let quiz = {}
+	let votingRight = false
+	let classroomData = {} // Store classroom data for students
+
+	// Calculate voting rights based on poll data
+	function updateVotingRight() {
+		if (!poll || !poll.status) {
+			votingRight = false;
+			return;
+		}
+
+
+		// Check if student has the "Excluded" tag
+		if (classroomData && classroomData.myTags && Array.isArray(classroomData.myTags) && classroomData.myTags.includes("Excluded")) {
+			votingRight = false;
+			return;
+		}
+
+		// Check if excluded by the "No guests/mods/teachers" settings
+		if (classroomData && classroomData.settings && classroomData.settings.isExcluded) {
+			if (classroomData.settings.isExcluded.guests && currentUser.permissions === GUEST_PERMISSIONS) {
+				votingRight = false;
+				return;
+			}
+			if (classroomData.settings.isExcluded.mods && currentUser.classPermissions === MOD_PERMISSIONS) {
+				votingRight = false;
+				return;
+			}
+			if (classroomData.settings.isExcluded.teachers && currentUser.classPermissions === TEACHER_PERMISSIONS) {
+				votingRight = false;
+				return;
+			}
+		}
+		
+		// Check if current user's ID is in the excludedRespondents array
+		// Student has voting rights if they are NOT in the excluded list
+		if (!poll.excludedRespondents || !Array.isArray(poll.excludedRespondents)) {
+			votingRight = true; // No exclusion list means everyone can vote
+		} else {
+			votingRight = !poll.excludedRespondents.includes(currentUser.id);
+		}
+	}
+
+	// Get the reason why a user cannot vote
+	function getNoVoteReason(classroomData) {
+		// Check if student has the "Excluded" tag
+		if (classroomData && classroomData.myTags && Array.isArray(classroomData.myTags) && classroomData.myTags.includes("Excluded")) {
+			return "You cannot vote due to being excluded";
+		}
+		
+		if (!classroomData || !classroomData.settings || !classroomData.settings.isExcluded) {
+			return "You may not answer currently";
+		}
+
+		// Check if user is excluded due to their permission level
+		// For guests, check global permissions; for others, check classPermissions
+		if (currentUser.permissions === GUEST_PERMISSIONS && classroomData.settings.isExcluded.guests) {
+			return "Guests cannot vote in this poll";
+		}
+		if (currentUser.classPermissions === MOD_PERMISSIONS && classroomData.settings.isExcluded.mods) {
+			return "Moderators cannot vote in this poll";
+		}
+		if (currentUser.classPermissions === TEACHER_PERMISSIONS && classroomData.settings.isExcluded.teachers) {
+			return "Teachers cannot vote in this poll";
+		}
+
+		// Default message for other exclusion reasons
+		return "You may not answer currently";
+	}
+
+	function unselectRemove(event) {
+		event.preventDefault();
+		document.getElementById('remove').checked = false;
+	}
+
+	let userSelectedCheckboxes = [];
+
+	function updatePage() {
+		pollForm = document.getElementById('pollForm');
+		const responseTextbox = document.getElementById('resTextBox');
+
+		pollPromptDisplay = document.getElementById('pollPrompt');
+
+		if (pollDiv.querySelector("#remove")) {
+			pollDiv.querySelector("#remove").remove();
+		}
+
+		if (poll.allowMultipleResponses) {
+			multiAnswer = "checkbox"
+		} else {
+			multiAnswer = "button";
+		}
+
+		pollContent.style.display = 'block';
+		if (poll.status) {
+			noPoll.style.display = 'none';
+			pollDiv.style.display = 'block';
+
+			// Grab the existing textarea if it exists
+			let currentTextRes = '';
+			let selectionStart = 0, selectionEnd = 0;
+			let wasFocused = false;
+
+			if (responseTextbox) {
+				currentTextRes = responseTextbox.value;
+				selectionStart = responseTextbox.selectionStart;
+				selectionEnd = responseTextbox.selectionEnd;
+				wasFocused = document.activeElement === responseTextbox;
+			}
+
+			pollForm.innerHTML = '';
+
+			// Update the poll prompt
+			pollPromptDisplay.innerText = poll.prompt;
+
+			// If user cannot vote
+			const mayNotAnswer = document.getElementById('pollControl');
+			const noVoteReason = getNoVoteReason(classroomData);
+			if (!votingRight || noVoteReason !== "You may not answer currently") {
+				pollForm.innerHTML = `<label class="form-control" id="pollControl" style="--theme-color: hsl(0, 0%, 70%);">${noVoteReason}</label>`;
+				return;
+			} else if (votingRight && mayNotAnswer) {
+				mayNotAnswer.remove();
+			}
+
+			// Only create textarea if it doesn't exist
+			let textarea = responseTextbox;
+			if (poll.allowTextResponses) {
+				textarea = document.createElement('textarea');
+				textarea.name = 'resText';
+				textarea.cols = 20;
+				textarea.rows = 5;
+				textarea.id = 'resTextBox';
+				textarea.className = 'revampButton revampWithText';
+				pollForm.appendChild(textarea);
+			}
+
+			// Set the value of the student's text response if it exists
+			if (poll.allowTextResponses && textarea) {
+				textarea.value = (currentTextRes || oldTextRes || '').replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+				// Restore focus if it was focused before
+				if (wasFocused) {
+					textarea.focus();
+					textarea.setSelectionRange(selectionStart, selectionEnd);
+				}
+			}
+
+			// Clear old response buttons
+			const responseButtons = Array.from(pollForm.querySelectorAll('.pollButton'));
+			responseButtons.forEach(btn => btn.remove());
+
+			// Add new response options
+			for (let response of poll.responses) {
+				if (multiAnswer !== 'button') {
+					const checkbox = document.createElement('input');
+					checkbox.type = 'checkbox';
+					checkbox.name = 'poll';
+					checkbox.className = 'revampButton pollButton';
+					checkbox.id = response.answer;
+					checkbox.style.cssText = `--color: ${response.color}44;--theme-color: ${response.color};`;
+					pollForm.appendChild(checkbox);
+					pollForm.appendChild(document.createTextNode(response.answer));
+					checkbox.checked = userSelectedCheckboxes.includes(response.answer);
+					checkbox.onclick = () => {
+						if (checkbox.checked) {
+							userSelectedCheckboxes.push(response.answer);
+						} else {
+							userSelectedCheckboxes = userSelectedCheckboxes.filter(id => id !== response.answer);
+						}
+					};
+				} else {
+					const btn = document.createElement('button');
+					btn.name = 'poll';
+					btn.className = `revampButton pollButton ${response.answer === currentUser.pollRes.buttonRes ? 'activePollButton' : ''}`;
+					btn.id = response.answer;
+					btn.style.cssText = `background: ${response.color}44;--color: ${response.color};--theme-color: black;`;
+					btn.textContent = response.answer;
+					btn.onclick = () => submitPoll(btn);
+					pollForm.appendChild(btn);
+				}
+			}
+
+			// Remove / Submit buttons
+			let removeBtn = pollDiv.querySelector('#remove');
+			if (removeBtn) removeBtn.remove(); // remove old
+			if (!poll.allowMultipleResponses && poll.allowVoteChanges) {
+				const btn = document.createElement('button');
+				btn.className = 'revampButton';
+				btn.name = 'poll';
+				btn.id = 'remove';
+				btn.value = 'remove';
+				btn.textContent = 'Remove Vote';
+				btn.onclick = () => submitPoll(btn);
+				pollDiv.appendChild(btn);
+			} else if (poll.allowMultipleResponses) {
+				const btn = document.createElement('button');
+				btn.className = 'revampButton';
+				btn.id = 'remove';
+				btn.textContent = 'Submit';
+				btn.onclick = () => submitPoll(btn);
+				pollDiv.appendChild(btn);
+			}
+
+			// Disable radios if needed
+			if (!poll.allowVoteChanges && currentUser.pollRes.buttonRes !== '') {
+				const radios = pollForm.querySelectorAll('[name="poll"]');
+				radios.forEach(r => r.disabled = true);
+			}
+
+		} else {
+			noPoll.style.display = 'block';
+			pollDiv.style.display = 'none';
+		}
+
+		// If the user has responded before on this poll, put their previous responses in the form
+		if (!poll.allowMultipleResponses) {
+			// If the poll isn't multi-res, handle it normally
+			// const oldLetterElement = document.getElementById(oldLetterRes)
+			// if (oldLetterRes && oldLetterElement) {
+			// 	oldLetterElement.checked = true
+			// }
+		} else {
+			// If the poll is multi-res, split the response and check all of them
+			const splitLetterRes = currentUser.pollRes.buttonRes;
+			for (const splitLetter of splitLetterRes) {
+				const oldLetterElement = document.getElementById(splitLetter);
+				if (oldLetterElement) {
+					oldLetterElement.checked = true;
+				}
+			}
+		}
+	}
+
+	// Submits the users answer to the poll
+	// Takes the pollResponses value which defines the number of possible answers
+	function submitPoll(button) {
+		let radios = document.getElementsByName('poll')
+		let textarea = document.getElementById("resTextBox")
+		let lettRes = []
+		let textRes = ''
+
+		//Subtract 2 from radios.length to make sure the bathroom break does not interfere with radio values and lettRes
+		for (let i = 0; i < radios.length; i++) {
+			if (radios[i].type == "checkbox" && radios[i].checked) {
+				lettRes.push(radios[i].id)
+			} else if(radios[i].tagName == 'BUTTON' && radios[i] == button) {
+				lettRes.push(radios[i].id)
+			}
+		}
+
+		// If the poll isn't multi-res, extract the single response from the array
+		if (lettRes.length == 1 && !poll.allowMultipleResponses) {
+			lettRes = lettRes[0]
+		}
+
+		if (textarea) {
+			textRes = textarea.value
+		}
+
+		if(!poll.allowVoteChanges && currentUser.pollRes.buttonRes !== '') {
+			radios.forEach((res => {
+				res.disabled = true;
+			}))
+			return;
+		}
+
+		currentUser.pollRes = {buttonRes: lettRes, textRes: textRes, date: new Date()};
+		if (lettRes == "remove") {
+			currentUser.pollRes = {buttonRes: '', textRes: '', date: null};
+			if(textarea) textarea.value = ''
+		}
+
+		// If the new input is not the same as the previous input, then send it to the server
+		// This prevents spamming the server with the same input
+		const letterChanged = (Array.isArray(lettRes) || Array.isArray(oldLetterRes))
+			? !deepObjectEqual(lettRes, oldLetterRes)
+			: lettRes !== oldLetterRes;
+		const textChanged = textRes !== oldTextRes;
+
+		if (letterChanged || textChanged) {
+			socket.emit('pollResp', lettRes, textRes);
+			oldLetterRes = lettRes;
+			oldTextRes = textRes;
+		}
+	}
+
+	socket.on('classUpdate', (newClassroomData) => {
+		classroomData = newClassroomData; // Update stored classroom data
+		const newPoll = newClassroomData.poll;
+		
+		// Check if poll data changed (excluding myTags which can change independently)
+		const pollChanged = !deepObjectEqual(poll, newPoll);
+
+		if (pollChanged && poll.startTime !== undefined && poll.startTime !== newPoll.startTime) {
+			currentUser.pollRes = {
+				buttonRes: '',
+				textRes: '',
+				date: null
+			};
+			userSelectedCheckboxes = [];
+			document.querySelectorAll('input.pollButton').forEach((btn) => {
+				btn.checked = false;
+			});
+			oldLetterRes = '';
+			oldTextRes = '';
+		}
+
+		// Always update voting right when classroomData changes (e.g., when tags change)
+		const oldVotingRight = votingRight;
+		poll = newPoll;
+		updateVotingRight();
+
+		// If voting rights were lost (user got excluded), clear their local vote state
+		if (oldVotingRight && !votingRight) {
+			currentUser.pollRes = {
+				buttonRes: '',
+				textRes: '',
+				date: null
+			};
+			userSelectedCheckboxes = [];
+			// Clear all button highlights
+			document.querySelectorAll('button.pollButton').forEach((btn) => {
+				btn.classList.remove('activePollButton');
+			});
+			// Clear all checkbox states
+			document.querySelectorAll('input.pollButton').forEach((btn) => {
+				btn.checked = false;
+			});
+			oldLetterRes = '';
+			oldTextRes = '';
+		}
+		
+		// If voting right changed or poll changed, update the page
+		if (oldVotingRight !== votingRight || pollChanged) {
+			updatePage();
+		}
+	});
+
+	socket.on('pollResp', (voteData) => {
+		const allResponses = document.querySelectorAll('#pollControl input[name="poll"]')
+		const oldLetterElement = document.querySelector(`#pollControl input[value="${voteData.res}"]`);
+
+		// Set all responses to unchecked
+		allResponses.forEach((response) => {
+			if (response.type == 'radio' || response.type == 'checkbox') {
+				response.checked = false;
+			}
+		});
+
+		// Set the correct response to checked
+		if (oldLetterElement && !oldLetterElement.checked) {
+			oldLetterElement.checked = true;
+		}
+
+		if (voteData.textRes) {
+			const resTextBox = document.getElementById("resTextBox");
+			if (resTextBox) {
+				resTextBox.value = voteData.textRes;
+			}
+		}
+	});
+
+	// Calculate initial voting rights from poll data
+	updateVotingRight();
+
+	//help ticket/break button
+
+	socket.on("helpSuccess", () => {
+		alert("Help ticket sent")
+	})
+
+	function help() {
+		let reason = document.getElementById('ticket').value
+		socket.emit('help', reason)
+		document.getElementById('ticket').value = ''
+	}
+
+	let options = document.getElementsByName('option')
+	for (let option of options) {
+		option.onchange = () => {
+			let otherRadio = document.getElementById('other')
+			let otherText = document.getElementById('otherText')
+
+			if (otherRadio.checked) {
+				otherText.required = true
+				otherText.classList.remove('hidden')
+			}
+			else {
+				otherText.required = false
+				otherText.classList.add('hidden')
+			}
+		}
+	}
+
+	function submitBreak() {
+		event.preventDefault()
+		document.getElementById('requestBreakDialog').close()
+
+		let reason = document.querySelector('input[name=option]:checked').value
+		if (reason == 'other')
+			reason = document.getElementById('otherText').value
+
+		socket.emit('requestBreak', reason)
+	}
+</script>
+
+</html>

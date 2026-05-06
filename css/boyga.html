@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>buurrger</title>
+    <style>
+        body {
+            font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif
+        }
+
+        .item {
+            background-color: #9999ff;
+            padding: 20px;
+            margin: 5px;
+            border-radius: 10px;
+        }
+
+        .order {
+            margin-top: 30px;
+        }
+
+        .slot {
+            border: #6666ff;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        #menu {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+        }
+
+        #app {
+
+            width: 400px;
+        }
+
+        .selected {
+            background-color: #ff66ff;
+
+        }
+    </style>
+
+
+
+</head>
+
+
+
+
+
+
+
+
+
+
+
+<body>
+    <div id="app">
+
+        <div id="menu">
+
+            <div class="item" onclick="toggleSelect(this)">paddy</div>
+            <div class="item" onclick="toggleSelect(this)">cheese</div>
+            <div class="item" onclick="toggleSelect(this)">lettuce</div>
+            <div class="item" onclick="toggleSelect(this)">tomato</div>
+            <div class="item" onclick="toggleSelect(this)">pinapple</div>
+            <div class="item" onclick="toggleSelect(this)">pickles</div>
+            <div class="item" onclick="toggleSelect(this)">onions</div>
+            <div class="item" onclick="toggleSelect(this)">bun</div>
+            
+        </div>
+
+        <button onclick="addToOrder()">add to order</button>
+
+        <div id="order">
+
+
+
+
+
+        </div>
+
+
+    </div>
+
+</body>
+<script>
+    function toggleSelect(element) {
+        element.classList.toggle("selected");
+
+    }
+    function addToOrder() {
+        var orderBox = document.getElementById("order")
+        var selectedItems = document.getElementsByClassName("selected")
+        var boyga = document.createElement('div');
+
+        for (const item of selectedItems) {
+boyga.innerHTML+=item.textContent + " ";
+        }
+orderBox.appendChild(boyga);
+
+
+
+
+
+    }
+
+</script>
+
+</html>

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polytrack Recreation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #111;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #gameCanvas {
+            border: 2px solid #333;
+            background-color: #000;
+        }
+        
+        #gameUI {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+            display: none;
+        }
+        
+        #gameOver h2 {
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+        
+        #gameOver button {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #333;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        #gameOver button:hover {
+            background-color: #555;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            text-align: center;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="gameUI">
+            <div>Score: <span id="score">0</span></div>
+            <div>High Score: <span id="highScore">0</span></div>
+        </div>
+        <div id="gameOver">
+            <h2>Game Over</h2>
+            <p>Your Score: <span id="finalScore">0</span></p>
+            <button id="restartBtn">Restart</button>
+        </div>
+        <div id="instructions">
+            Use LEFT and RIGHT arrow keys or A/D to move
+        </div>
+    </div>
+
+    <script>
+        // Game variables
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const highScoreElement = document.getElementById('highScore');
+        const gameOverElement = document.getElementById('gameOver');
+        const finalScoreElement = document.getElementById('finalScore');
+        const restartBtn = document.getElementById('restartBtn');
+        
+        // Set canvas dimensions
+        function setCanvasSize() {
+            canvas.width = Math.min(window.innerWidth * 0.9, 800);
+            canvas.height = Math.min(window.innerHeight * 0.8, 600);
+        }
+        
+        setCanvasSize();
+        window.addEventListener('resize', setCanvasSize);
+        
+        // Game state
+        let gameRunning = false;
+        let score = 0;
+        let highScore = localStorage.getItem('polytrackHighScore') || 0;
+        highScoreElement.textContent = highScore;
+        
+        // Player properties
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height - 100,
+            width: 30,
+            height: 30,
+            speed: 5,
+            color: '#0ff',
+            trail: []
+        };
+        
+        // Track properties
+        const track = {
+            segments: 20,
+            width: canvas.width,
+            height: canvas.height / track.segments,
+            points: [],
+            colors: []
+        };
+        
+        // Initialize track
+        function initTrack() {
+            track.points = [];
+            track.colors = [];
+            
+            for (let i = 0; i < track.segments + 1; i++) {
+                const y = i * track.height;
+                let leftBound, rightBound;
+                
+                if (i === 0) {
+                    // Start with full width
+                    leftBound = 0;
+                    rightBound = canvas.width;
+                } else {
+                    // Create narrower bounds as we go down
+                    const prevLeft = track.points[i-1].left;
+                    const prevRight = track.points[i-1].right;
+                    
+                    // Add some randomness to create curves
+                    const curveAmount = Math.random() * 100 - 50;
+                    
+                    leftBound = Math.max(50, prevLeft + curveAmount);
+                    rightBound = Math.min(canvas.width - 50, prevRight + curveAmount);
+                    
+                    // Ensure track isn't too narrow
+                    if (rightBound - leftBound < 150) {
+                        const mid = (leftBound + rightBound) / 2;
+                        leftBound = mid - 75;
+                        rightBound = mid + 75;
+                    }
+                }
+                
+                track.points.push({ y, left: leftBound, right: rightBound });
+                
+                // Random colors for track segments
+                const hue = Math.random() * 360;
+                track.colors.push(`hsl(\${hue}, 70%, 20%)`);
+            }
+        }
+        
+        // Obstacles
+        const obstacles = [];
+        
+        function createObstacle() {
+            const segmentIndex = Math.floor(Math.random() * (track.segments - 5)) + 5;
+            const segment = track.points[segmentIndex];
+            const midX = (segment.left + segment.right) / 2;
+            
+            obstacles.push({
+                x: midX + (Math.random() - 0.5) * (segment.right - segment.left - 60),
+                y: segment.y,
+                width: 40,
+                height: 20,
+                color: '#f00',
+                segmentIndex
+            });
+        }
+        
+        // Collectibles
+        const collectibles = [];
+        
+        function createCollectible() {
+            const segmentIndex = Math.floor(Math.random() * (track.segments - 5)) + 5;
+            const segment = track.points[segmentIndex];
+            const midX = (segment.left + segment.right) / 2;
+            
+            collectibles.push({
+                x: midX + (Math.random() - 0.5) * (segment.right - segment.left - 60),
+                y: segment.y,
+                radius: 10,
+                color: '#ff0',
+                segmentIndex,
+                collected: false
+            });
+        }
+        
+        // Input handling
+        const keys = {};
+        
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        // Game functions
+        function updatePlayer() {
+            // Store previous position for trail
+            player.trail.push({ x: player.x, y: player.y });
+            if (player.trail.length > 10) {
+                player.trail.shift();
+            }
+            
+            // Move player based on input
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+                player.x -= player.speed;
+            }
+            if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+                player.x += player.speed;
+            }
+            
+            // Check boundaries
+            const playerSegment = Math.floor((player.y - (canvas.height - 100)) / track.height) + track.segments;
+            if (playerSegment >= 0 && playerSegment < track.points.length) {
+                const segment = track.points[playerSegment];
+                if (player.x < segment.left + player.width/2) {
+                    player.x = segment.left + player.width/2;
+                }
+                if (player.x > segment.right - player.width/2) {
+                    player.x = segment.right - player.width/2;
+                }
+            }
+        }
+        
+    function updateTrack(){
+            // Move track down
+            for (let i = 0; i < track.points.length; i++) {
+                track.points[i].y += 2;}
+            }
+            
+            // Check if we need to add new segments
+            if (track.points[0].y > track.height) 
+                // Remove first segment
+                track.points.shift();
+                track.colors.shift();
+                
+                // Add new segment at the bottom
+                const lastSegment = track.points[track.points.length - 1];
+                const curveAmount = Math.random() * 100 - 50;
+                
+                const leftBound = Math.max(50, lastSegment.left + curveAmount);
+                const rightBound = Math.min(canvas.width - 50, lastSegment.right + curveAmount);
+                
+                // Ensure track isn't too narrow
+                let newLeft = leftBound;
+                let newRight = rightBound;
+                
+                if (rightBound - leftBound)s

@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Ultimate PolyTrack HTML</title>
+
+<style>
+
+body{
+margin:0;
+overflow:hidden;
+background:#111;
+font-family:monospace;
+}
+
+#ui{
+position:absolute;
+top:10px;
+left:10px;
+color:white;
+}
+
+#editor{
+position:absolute;
+top:10px;
+right:10px;
+color:white;
+font-size:13px;
+}
+
+#nitro{
+width:220px;
+height:12px;
+background:#333;
+margin-top:6px;
+}
+
+#nitroFill{
+height:100%;
+background:cyan;
+width:100%;
+}
+
+#minimap{
+position:absolute;
+bottom:10px;
+right:10px;
+width:200px;
+height:200px;
+background:black;
+border:2px solid white;
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="ui">
+Speed: <span id="speed">0</span><br>
+Lap: <span id="lap">0</span><br>
+Best: <span id="best">--</span>
+
+<div id="nitro">
+<div id="nitroFill"></div>
+</div>
+</div>
+
+<div id="editor">
+E toggle editor<br>
+Drag build road<br>
+Z undo<br>
+Shift nitro<br>
+C clear<br>
+K export track<br>
+L import track
+</div>
+
+<canvas id="minimap"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+
+<script>
+
+// ---------- BASIC SETUP ----------
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x87ceeb);
+
+const camera=new THREE.PerspectiveCamera(
+75,
+window.innerWidth/window.innerHeight,
+0.1,
+10000
+);
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.shadowMap.enabled=true;
+
+document.body.appendChild(renderer.domElement);
+
+
+// ---------- LIGHT ----------
+
+scene.add(new THREE.AmbientLight(0xffffff,0.6));
+
+const sun=new THREE.DirectionalLight(0xffffff,1);
+sun.position.set(400,800,400);
+sun.castShadow=true;
+
+scene.add(sun);
+
+
+// ---------- GROUND ----------
+
+const ground=new THREE.Mesh(
+new THREE.PlaneGeometry(20000,20000),
+new THREE.MeshStandardMaterial({color:0x2b2b2b})
+);
+
+ground.rotation.x=-Math.PI/2;
+ground.receiveShadow=true;
+
+scene.add(ground);
+
+
+// ---------- PLAYER CAR ----------
+
+const carMesh=new THREE.Mesh(
+new THREE.BoxGeometry(30,10,15),
+new THREE.MeshStandardMaterial({color:0x00ffff})
+);
+
+scene.add(carMesh);
+
+
+// ---------- AI CAR ----------
+
+const aiMesh=new THREE.Mesh(
+new THREE.BoxGeometry(30,10,15),
+new THREE.MeshStandardMaterial({color:0xff4444})
+);
+
+scene.add(aiMesh);
+
+
+// ---------- PLAYER PHYSICS ----------
+
+let car={
+x:0,
+y:0,
+angle:0,
+speed:0,
+maxSpeed:18,
+accel:0.45,
+turnSpeed:0.045,
+friction:0.035,
+drift:0.93
+};
+
+
+// ---------- INPUT ----------
+
+let keys={};
+
+document.addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true);
+document.addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+
+
+// ---------- GAMEPAD SUPPORT ----------
+
+function gamepad(){
+
+let g=navigator.getGamepads()[0];
+if(!g)return;
+
+if(g.buttons[7].pressed)keys["w"]=true;
+if(g.buttons[6].pressed)keys["s"]=true;
+
+let steer=g.axes[0];
+
+if(steer>0.2)keys["d"]=true;
+if(steer<-0.2)keys["a"]=true;
+
+}
+
+
+// ---------- TRACK EDITOR ----------
+
+let editorMode=true;
+let points=[];
+let roadMesh;
+
+const raycaster=new THREE.Raycaster();
+const mouse=new THREE.Vector2();
+
+let drawing=false;
+
+window.addEventListener("mousedown",()=>drawing=true);
+window.addEventListener("mouseup",()=>drawing=false);
+window.addEventListener("mousemove",drawTrack);
+
+function drawTrack(e){
+
+if(!editorMode||!drawing)return;
+
+mouse.x=(e.clientX/window.innerWidth)*2-1;
+mouse.y=-(e.clientY/window.innerHeight)*2+1;
+
+raycaster.setFromCamera(mouse,camera);
+
+let hit=raycaster.intersectObject(ground);
+
+if(hit.length==0)return;
+
+let p=hit[0].point;
+
+points.push(new THREE.Vector3(p.x,0,p.z));
+
+generateTrack();
+
+}
+
+
+// ---------- UNDO ----------
+
+document.addEventListener("keydown",e=>{
+if(e.key=="z"){
+points.pop();
+generateTrack();
+}
+});
+
+
+// ---------- TRACK GENERATION ----------
+
+function generateTrack(){
+
+if(roadMesh)scene.remove(roadMesh);
+
+if(points.length<3)return;
+
+let curve=new THREE.CatmullRomCurve3(points,true);
+
+let geo=new THREE.TubeGeometry(
+curve,
+points.length*4,
+40,
+14,
+true
+);
+
+let mat=new THREE.MeshStandardMaterial({color:0x555555});
+
+roadMesh=new THREE.Mesh(geo,mat);
+scene.add(roadMesh);
+
+generateCheckpoints();
+
+}
+
+
+// ---------- CHECKPOINTS ----------
+
+let checkpoints=[];
+let currentCheckpoint=0;
+
+function generateCheckpoints(){
+
+checkpoints=[];
+
+for(let i=0;i<points.length;i+=15)
+checkpoints.push(points[i]);
+
+}
+
+
+// ---------- NITRO ----------
+
+let nitro=100;
+
+function boost(){
+
+if(nitro<=0)return;
+
+car.speed+=0.8;
+nitro-=0.6;
+
+}
+
+function regenNitro(){
+
+nitro=Math.min(100,nitro+0.15);
+
+}
+
+function updateNitro(){
+
+document.getElementById("nitroFill").style.width=nitro+"%";
+
+}
+
+
+// ---------- LAP SYSTEM ----------
+
+let lap=0;
+let lapStart=performance.now();
+let bestLap=null;
+
+
+// ---------- GHOST SYSTEM ----------
+
+let ghost=[];
+let ghostIndex=0;
+
+const ghostMesh=new THREE.Mesh(
+new THREE.BoxGeometry(30,10,15),
+new THREE.MeshStandardMaterial({
+color:0xffffff,
+transparent:true,
+opacity:0.35
+})
+);
+
+scene.add(ghostMesh);
+
+
+// ---------- DRIFT MARKS ----------
+
+let skidGeo=new THREE.BufferGeometry();
+let skidMat=new THREE.LineBasicMaterial({color:0x111111});
+let skidLines=new THREE.LineSegments(skidGeo,skidMat);
+
+scene.add(skidLines);
+
+let skidPoints=[];
+
+
+// ---------- PLAYER UPDATE ----------
+
+let camX=0,camZ=0;
+
+function updateCar(){
+
+if(keys["w"])car.speed+=car.accel;
+if(keys["s"])car.speed-=car.accel;
+
+if(keys["shift"])boost();
+else regenNitro();
+
+car.speed=Math.max(-car.maxSpeed/2,Math.min(car.speed,car.maxSpeed));
+
+if(!keys["w"]&&!keys["s"])
+car.speed*=(1-car.friction);
+
+
+if(car.speed!=0){
+
+let t=car.speed/car.maxSpeed;
+
+if(keys["a"])car.angle-=car.turnSpeed*t;
+if(keys["d"])car.angle+=car.turnSpeed*t;
+
+}
+
+car.x+=Math.cos(car.angle)*car.speed*car.drift;
+car.y+=Math.sin(car.angle)*car.speed*car.drift;
+
+
+// ---------- DRIFT SKIDS ----------
+
+if(Math.abs(car.speed)>8){
+
+skidPoints.push(
+car.x,1,car.y,
+car.x-Math.cos(car.angle)*10,1,car.y-Math.sin(car.angle)*10
+);
+
+skidGeo.setAttribute(
+"position",
+new THREE.Float32BufferAttribute(skidPoints,3)
+);
+
+}
+
+
+// ---------- CAR MESH ----------
+
+carMesh.position.set(car.x,6,car.y);
+carMesh.rotation.y=-car.angle;
+
+
+// ---------- CAMERA ----------
+
+let dist=220;
+
+let tx=car.x-Math.cos(car.angle)*dist;
+let tz=car.y-Math.sin(car.angle)*dist;
+
+camX+= (tx-camX)*0.1;
+camZ+= (tz-camZ)*0.1;
+
+camera.position.set(camX,130,camZ);
+camera.lookAt(car.x,0,car.y);
+
+
+// ---------- UI ----------
+
+document.getElementById("speed").textContent=
+Math.abs(car.speed*20).toFixed(0);
+
+updateNitro();
+
+
+// ---------- GHOST RECORD ----------
+
+ghost.push({x:car.x,y:car.y});
+
+
+// ---------- CHECKPOINTS ----------
+
+let cp=checkpoints[currentCheckpoint];
+
+if(cp){
+
+let dx=car.x-cp.x;
+let dz=car.y-cp.z;
+
+if(Math.hypot(dx,dz)<80){
+
+currentCheckpoint++;
+
+if(currentCheckpoint>=checkpoints.length){
+
+lap++;
+currentCheckpoint=0;
+
+ghostIndex=0;
+
+let time=(performance.now()-lapStart)/1000;
+lapStart=performance.now();
+
+if(!bestLap||time<bestLap)
+bestLap=time;
+
+document.getElementById("best").textContent=
+bestLap.toFixed(2);
+
+}
+
+}
+
+}
+
+document.getElementById("lap").textContent=lap;
+
+}
+
+
+// ---------- GHOST PLAYBACK ----------
+
+function updateGhost(){
+
+if(ghostIndex>=ghost.length)return;
+
+let g=ghost[ghostIndex];
+
+ghostMesh.position.set(g.x,6,g.y);
+
+ghostIndex++;
+
+}
+
+
+// ---------- AI ----------
+
+let aiIndex=0;
+
+function updateAI(){
+
+if(points.length<2)return;
+
+let target=points[aiIndex];
+
+let dx=target.x-aiMesh.position.x;
+let dz=target.z-aiMesh.position.z;
+
+let dist=Math.hypot(dx,dz);
+
+aiMesh.position.x+=dx*0.03;
+aiMesh.position.z+=dz*0.03;
+
+aiMesh.lookAt(target.x,6,target.z);
+
+if(dist<40)
+aiIndex=(aiIndex+1)%points.length;
+
+}
+
+
+// ---------- MINIMAP ----------
+
+const map=document.getElementById("minimap");
+const ctx=map.getContext("2d");
+
+function drawMinimap(){
+
+ctx.clearRect(0,0,200,200);
+
+ctx.strokeStyle="white";
+ctx.beginPath();
+
+points.forEach((p,i)=>{
+
+let x=100+p.x*0.05;
+let y=100+p.z*0.05;
+
+if(i==0)ctx.moveTo(x,y);
+else ctx.lineTo(x,y);
+
+});
+
+ctx.stroke();
+
+ctx.fillStyle="cyan";
+
+ctx.beginPath();
+ctx.arc(100+car.x*0.05,100+car.y*0.05,4,0,Math.PI*2);
+ctx.fill();
+
+ctx.fillStyle="red";
+
+ctx.beginPath();
+ctx.arc(
+100+aiMesh.position.x*0.05,
+100+aiMesh.position.z*0.05,
+4,0,Math.PI*2
+);
+ctx.fill();
+
+}
+
+
+// ---------- EXPORT / IMPORT ----------
+
+document.addEventListener("keydown",e=>{
+
+if(e.key=="k"){
+
+let code=btoa(JSON.stringify(points));
+prompt("Track Code",code);
+
+}
+
+if(e.key=="l"){
+
+let code=prompt("Paste Track");
+
+if(!code)return;
+
+points=JSON.parse(atob(code));
+
+generateTrack();
+
+}
+
+});
+
+
+// ---------- TOGGLE EDITOR ----------
+
+document.addEventListener("keydown",e=>{
+if(e.key=="e")editorMode=!editorMode;
+});
+
+
+// ---------- CLEAR ----------
+
+document.addEventListener("keydown",e=>{
+if(e.key=="c"){
+points=[];
+generateTrack();
+}
+});
+
+
+// ---------- GAME LOOP ----------
+
+function loop(){
+
+gamepad();
+
+if(!editorMode){
+
+updateCar();
+updateGhost();
+updateAI();
+
+}
+
+drawMinimap();
+
+renderer.render(scene,camera);
+
+requestAnimationFrame(loop);
+
+}
+
+loop();
+
+
+// ---------- RESIZE ----------
+
+window.addEventListener("resize",()=>{
+
+camera.aspect=window.innerWidth/window.innerHeight;
+camera.updateProjectionMatrix();
+renderer.setSize(window.innerWidth,window.innerHeight);
+
+});
+
+</script>
+
+</body>
+</html>

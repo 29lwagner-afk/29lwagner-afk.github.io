@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>ULTRA+ Racing Engine</title>
+<style>
+body { margin:0; overflow:hidden; background:#000; font-family:Arial; }
+canvas { display:block; }
+#ui {
+  position:absolute; top:10px; left:10px;
+  color:white; font-size:14px;
+  background:rgba(0,0,0,0.4);
+  padding:10px;
+}
+#menu {
+  position:absolute; width:100%; height:100%;
+  display:flex; align-items:center; justify-content:center;
+  flex-direction:column;
+  background:rgba(0,0,0,0.85);
+  color:white;
+}
+button { padding:12px 20px; font-size:18px; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<div id="ui"></div>
+<div id="menu">
+  <h1>🏎️ ULTRA+ RACER</h1>
+  <button onclick="start()">START</button>
+</div>
+
+<canvas id="c"></canvas>
+
+<script>
+const c = document.getElementById("c");
+const ctx = c.getContext("2d");
+
+c.width = innerWidth;
+c.height = innerHeight;
+
+let keys = {};
+addEventListener("keydown", e => keys[e.key]=true);
+addEventListener("keyup", e => keys[e.key]=false);
+
+// GAME STATE
+let running = false;
+let score=0, speed=6, distance=0, lap=1;
+let nitro=100, shake=0;
+
+// ROAD
+const lanes = 3;
+const laneW = c.width / lanes;
+let roadY = 0;
+
+// PLAYER
+let player = {
+  lane:1,
+  x:0,
+  y:c.height-140,
+  vx:0
+};
+
+// ENTITIES
+let cars=[], ai=[], boosts=[];
+
+// START
+function start(){
+  running=true;
+  document.getElementById("menu").style.display="none";
+  reset();
+}
+
+function reset(){
+  cars=[]; ai=[]; boosts=[];
+  score=0; speed=6; distance=0; lap=1; nitro=100;
+  player.lane=1;
+}
+
+// SPAWN
+setInterval(()=> {
+  if(!running) return;
+  cars.push({lane:Math.floor(Math.random()*lanes), y:-200});
+}, 900);
+
+setInterval(()=> {
+  if(!running) return;
+  ai.push({lane:Math.floor(Math.random()*lanes), y:-400, s:4+Math.random()*3});
+}, 1600);
+
+setInterval(()=> {
+  if(!running) return;
+  boosts.push({lane:Math.floor(Math.random()*lanes), y:-600});
+}, 3000);
+
+// INPUT
+function input(){
+  if(keys["ArrowLeft"]) { player.lane=Math.max(0,player.lane-1); keys["ArrowLeft"]=false; }
+  if(keys["ArrowRight"]) { player.lane=Math.min(lanes-1,player.lane+1); keys["ArrowRight"]=false; }
+}
+
+// UPDATE
+function update(){
+  if(!running) return;
+
+  input();
+
+  let boost = keys["Shift"] && nitro>0 ? 5 : 0;
+  if(boost) nitro-=0.7; else nitro+=0.3;
+  nitro=Math.max(0,Math.min(100,nitro));
+
+  // road motion
+  speed += 0.002;
+  roadY += speed + boost;
+
+  distance += speed;
+  score += speed * 0.2;
+
+  // lap system
+  if(distance > 5000){
+    lap++;
+    distance=0;
+    speed+=0.5;
+  }
+
+  // smooth car movement
+  let tx = player.lane * laneW + laneW/2;
+  player.vx += (tx - player.x) * 0.1;
+  player.vx *= 0.8;
+  player.x += player.vx;
+
+  // SHAKE
+  if(shake>0) shake--;
+
+  // OBSTACLES
+  for(let o of cars){
+    o.y += speed + boost;
+
+    if(hit(o)){
+      crash();
+    }
+  }
+  cars = cars.filter(o=>o.y<c.height+200);
+
+  // AI
+  for(let a of ai){
+    a.y += a.s + speed*0.3;
+
+    if(hit(a)){
+      crash();
+    }
+  }
+  ai = ai.filter(a=>a.y<c.height+200);
+
+  // BOOSTS
+  for(let b of boosts){
+    b.y += speed;
+
+    if(
+      Math.abs(getX(b.lane)-player.x)<40 &&
+      Math.abs(b.y-player.y)<60
+    ){
+      nitro = 100;
+      speed += 0.5;
+      b.collected = true;
+    }
+  }
+  boosts = boosts.filter(b=>!b.collected && b.y<c.height+200);
+
+  updateUI();
+}
+
+// COLLISION
+function hit(o){
+  return Math.abs(getX(o.lane)-player.x)<40 &&
+         Math.abs(o.y-player.y)<70;
+}
+
+function getX(lane){
+  return lane*laneW + laneW/2;
+}
+
+// CRASH
+function crash(){
+  running=false;
+  document.getElementById("menu").style.display="flex";
+  document.getElementById("menu").innerHTML=`
+    <h1>💥 CRASH!</h1>
+    <p>Score: ${Math.floor(score)}</p>
+    <button onclick="start()">RESTART</button>
+  `;
+}
+
+// DRAW ROAD (pseudo 3D)
+function road(){
+  ctx.fillStyle="#0a0a0a";
+  ctx.fillRect(0,0,c.width,c.height);
+
+  for(let i=0;i<20;i++){
+    let y = (i*40 - roadY%40);
+    ctx.fillStyle = i%2 ? "#222":"#111";
+    ctx.fillRect(0,y,c.width,40);
+  }
+
+  // lane lines
+  ctx.strokeStyle="#444";
+  ctx.lineWidth=2;
+  ctx.setLineDash([20,20]);
+  ctx.lineDashOffset=-roadY;
+
+  for(let i=1;i<lanes;i++){
+    let x=i*laneW;
+    ctx.beginPath();
+    ctx.moveTo(x,0);
+    ctx.lineTo(x,c.height);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+}
+
+// DRAW
+function draw(){
+  road();
+
+  // boosts
+  ctx.fillStyle="lime";
+  boosts.forEach(b=>{
+    ctx.fillRect(getX(b.lane)-10,b.y,20,20);
+  });
+
+  // AI
+  ctx.fillStyle="orange";
+  ai.forEach(a=>{
+    ctx.fillRect(getX(a.lane)-20,a.y,40,70);
+  });
+
+  // obstacles
+  ctx.fillStyle="red";
+  cars.forEach(o=>{
+    ctx.fillRect(getX(o.lane)-20,o.y,40,70);
+  });
+
+  // player
+  ctx.fillStyle="cyan";
+  ctx.fillRect(player.x-20,player.y,40,70);
+
+  // nitro bar
+  ctx.fillStyle="white";
+  ctx.fillRect(10,c.height-20,nitro*2,10);
+}
+
+// UI
+function updateUI(){
+  document.getElementById("ui").innerHTML=
+  `🏁 Lap: ${lap}<br>
+   🏆 Score: ${Math.floor(score)}<br>
+   ⚡ Speed: ${speed.toFixed(1)}<br>
+   🧪 Nitro: ${nitro.toFixed(0)}%`;
+}
+
+// LOOP
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+
+</body>
+</html>
